@@ -1,0 +1,47 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+.pycache/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.venv/
+venv/
+env/
+
+# Secrets / env
+.env
+.env.*
+*.env
+*.pem
+*.key
+*.p12
+*.crt
+
+# Logs and runtime
+*.log
+*.out
+*.pid
+
+# Node / frontend
+mapcn_web/node_modules/
+mapcn_web/dist/
+mapcn_web/.vite/
+mapcn_web/.env
+mapcn_web/.env.*
+
+# Generated data caches/debug output
+parking_rates/lta_match_debug.json
+parking_rates/carpark_coordinates_cache.json
+parking_rates/*_debug*.json
+parking_rates/*_cache*.json
+parking_rates/*_merge.log
+
+# Misc
+coverage/
