@@ -1,0 +1,61 @@
+name: Update parking rates
+
+on:
+  schedule:
+    - cron: "0 2 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  RUN_EVERY_WEEKS: "1"
+
+jobs:
+  update-rates:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Decide whether to run this week
+        id: cadence
+        run: |
+          weeks="${RUN_EVERY_WEEKS}"
+          if [ "$weeks" = "1" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          iso_week="$(date -u +%V)"
+          if [ $((10#$iso_week % weeks)) -eq 0 ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Scrape latest rates
+        if: steps.cadence.outputs.run == 'true'
+        run: |
+          python fetch_motorist_rates.py --output parking_rates/CarparkRates.csv
+
+      - name: Create pull request if changed
+        if: steps.cadence.outputs.run == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: "chore: update parking rates"
+          title: "chore: update parking rates"
+          body: |
+            Automated update from scheduled workflow.
+          branch: "chore/update-parking-rates"
+          delete-branch: true
+          add-paths: |
+            parking_rates/CarparkRates.csv
