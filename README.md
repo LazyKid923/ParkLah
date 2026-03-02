@@ -6,7 +6,7 @@ ParkLah is a web app for exploring **Singapore carparks** with:
 - **Live available-lots data** (optional) from LTA DataMall and/or URA
 - A map UI with **your live location**, **place search**, **filters**, and **“best places”** sorting
 
-It is intended to be deployed on **Vercel** and uses a CSV dataset of carpark names/addresses/postal codes and human-readable rate strings.
+It uses a CSV dataset of carpark names/addresses/postal codes and human-readable rate strings.
 
 ---
 
@@ -75,7 +75,7 @@ ParkLah has two parts:
 - `mapcn_web/` is the frontend (Vite + React + MapLibre).
 - The backend logic (pricing, matching, availability fetching, place search, geocoding helpers) lives in Python modules such as `serve_live_map.py` and `calc_parking_cost.py`.
 
-For Vercel deployments, the app should expose the backend as **serverless API routes** under `/api/*` (for example, `/api/carparks`, `/api/status`, and `/api/place-search`) and serve the frontend as static assets.
+The frontend expects JSON endpoints under `/api/*` (for example, `/api/carparks`, `/api/status`, and `/api/place-search`).
 
 ---
 
@@ -100,31 +100,18 @@ The Python scripts use only the standard library (no `pip install` needed).
 
 ---
 
-## Deploy to Vercel
+## Configuration
 
-### Frontend
-Vercel should build and serve the Vite app from `mapcn_web/`.
-
-Typical Vercel project settings:
-
-- Root Directory: `mapcn_web`
-- Build Command: `npm run build`
-- Output Directory: `dist`
-
-### Backend (`/api/*`)
-The frontend expects JSON endpoints like:
-
-- `GET /api/carparks`
-- `GET /api/status`
-- `GET /api/place-search`
-
-On Vercel, these should be implemented as serverless functions. The core logic is already present in the Python code; the deployment work is to wrap that logic into Vercel API route handlers and ensure the CSV + caches are available to the functions at runtime.
-
-### Environment variables (Vercel)
-Configure these in your Vercel project if you want live availability:
+### Environment variables
+Set these if you want live availability:
 
 - `LTA_DATAMALL_ACCOUNT_KEY` (or `LTA_ACCOUNT_KEY`)
 - `URA_ACCESS_KEY`
+
+### Vercel frontend + external backend
+If you deploy `mapcn_web/` to Vercel, set `BACKEND_ORIGIN` in Vercel project settings to your backend URL (for example `https://parklah-backend.onrender.com`).
+
+The repo includes `mapcn_web/api/[...path].js`, which proxies Vercel requests from `/api/*` to `${BACKEND_ORIGIN}/api/*` so the frontend can keep using same-origin `/api` endpoints.
 
 ---
 
