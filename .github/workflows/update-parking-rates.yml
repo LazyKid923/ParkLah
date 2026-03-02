@@ -70,17 +70,20 @@ jobs:
             new_header = next(new_reader, [])
             new_rows = sum(1 for _ in new_reader)
 
+          header_set = set(new_header)
           required = {
             "carpark",
             "address",
             "postal_code",
-            "weekdays_rate_1",
-            "weekdays_rate_2",
             "saturday_rate",
             "sunday_publicholiday_rate",
           }
-          if not required.issubset(set(new_header)):
+          if not required.issubset(header_set):
             raise SystemExit(f"New CSV header missing required columns. Header: {new_header}")
+          if not ({"weekdays_rate_1", "weekdays_rate"} & header_set):
+            raise SystemExit(
+              f"New CSV header must include weekdays_rate_1 or weekdays_rate. Header: {new_header}"
+            )
 
           if new_rows == 0:
             raise SystemExit("New CSV has zero data rows.")
