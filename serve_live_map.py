@@ -31,7 +31,12 @@ from calc_parking_cost import (
 )
 
 ROOT = Path(__file__).resolve().parent
-WEB_DIR = ROOT / "web"
+WEB_DIR_CANDIDATES = [
+    ROOT / "web",
+    ROOT / "mapcn_web" / "dist",
+    ROOT / "mapcn_web",
+]
+WEB_DIR = next((candidate for candidate in WEB_DIR_CANDIDATES if candidate.exists()), WEB_DIR_CANDIDATES[0])
 DEFAULT_CSV = ROOT / "parking_rates" / "CarparkRates.csv"
 DEFAULT_CACHE = ROOT / "parking_rates" / "carpark_coordinates_cache.json"
 USER_AGENT = "ParkLahLiveMap/0.1 (+localhost)"
@@ -2123,7 +2128,7 @@ def main() -> None:
     if not args.csv.exists():
         raise SystemExit(f"CSV not found: {args.csv}")
     if not WEB_DIR.exists():
-        raise SystemExit(f"Web directory not found: {WEB_DIR}")
+        print(f"Warning: web directory not found at {WEB_DIR}. Static pages may return 404, but /api endpoints will still run.")
 
     carparks = load_carparks(args.csv)
     cache = load_cache(args.cache)

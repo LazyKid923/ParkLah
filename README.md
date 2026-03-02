@@ -113,6 +113,19 @@ If you deploy `mapcn_web/` to Vercel, set `BACKEND_ORIGIN` in Vercel project set
 
 The repo includes `mapcn_web/api/[...path].js`, which proxies Vercel requests from `/api/*` to `${BACKEND_ORIGIN}/api/*` so the frontend can keep using same-origin `/api` endpoints.
 
+### Deploy backend on Render
+This repo includes `render.yaml` so you can deploy `serve_live_map.py` as a Render web service.
+
+1. Push this repo to GitHub.
+2. In Render, create a new **Blueprint** and select this repo.
+3. Render will create `parklah-backend` using `render.yaml`.
+4. After deploy, copy the backend URL (for example `https://parklah-backend.onrender.com`).
+5. In Vercel, set `BACKEND_ORIGIN` to that URL and redeploy the frontend project.
+
+Optional env vars in Render (for live lots):
+- `LTA_DATAMALL_ACCOUNT_KEY`
+- `URA_ACCESS_KEY`
+
 ---
 
 ## Backend API endpoints (what the frontend calls)
