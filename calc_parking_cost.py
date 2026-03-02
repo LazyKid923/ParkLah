@@ -165,11 +165,18 @@ def collect_numbered_rate_text(row: dict[str, str], prefix: str, skip_key: Optio
     return [text for _, text in numbered]
 
 
-def compose_rate_text(row: dict[str, str], base_key: str, numbered_prefix: str) -> str:
+def compose_rate_text(
+    row: dict[str, str], base_key: str, numbered_prefix: str, fallback_base_keys: Optional[list[str]] = None
+) -> str:
     values: list[str] = []
-    base = normalize_text(row.get(base_key, "-"))
-    if base and base != "-":
-        values.append(base)
+    base_keys = [base_key]
+    if fallback_base_keys:
+        base_keys.extend(fallback_base_keys)
+    for key in base_keys:
+        base = normalize_text(row.get(key, "-"))
+        if base and base != "-":
+            values.append(base)
+            break
     values.extend(collect_numbered_rate_text(row, numbered_prefix, skip_key=base_key))
     if not values:
         return "-"
@@ -177,7 +184,9 @@ def compose_rate_text(row: dict[str, str], base_key: str, numbered_prefix: str) 
 
 
 def pick_day_text(row: dict[str, str], day_type: str) -> str:
-    weekday_text = compose_rate_text(row, "weekdays_rate_1", "weekdays_rate")
+    weekday_text = compose_rate_text(
+        row, "weekdays_rate_1", "weekdays_rate", fallback_base_keys=["weekdays_rate"]
+    )
     saturday = compose_rate_text(row, "saturday_rate", "saturday_rate")
     sunday = compose_rate_text(row, "sunday_publicholiday_rate", "sunday_publicholiday_rate")
 

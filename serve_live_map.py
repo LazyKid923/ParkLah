@@ -1519,7 +1519,7 @@ def load_carparks(csv_path: Path) -> list[Carpark]:
                     carpark=(row.get("carpark") or "").strip(),
                     address=(row.get("address") or "").strip(),
                     postal_code=normalize_postal_code(row.get("postal_code") or ""),
-                    weekdays_rate_1=(row.get("weekdays_rate_1") or "").strip(),
+                    weekdays_rate_1=((row.get("weekdays_rate_1") or row.get("weekdays_rate") or "").strip()),
                     weekdays_rate_2=(row.get("weekdays_rate_2") or "").strip(),
                     saturday_rate=(row.get("saturday_rate") or "").strip(),
                     sunday_publicholiday_rate=(row.get("sunday_publicholiday_rate") or "").strip(),
