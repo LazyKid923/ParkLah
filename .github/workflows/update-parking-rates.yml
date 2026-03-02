@@ -45,7 +45,51 @@ jobs:
       - name: Scrape latest rates
         if: steps.cadence.outputs.run == 'true'
         run: |
-          python fetch_motorist_rates.py --output parking_rates/CarparkRates.csv
+          python fetch_motorist_rates.py --output parking_rates/CarparkRates.new.csv
+
+      - name: Validate scraped output
+        if: steps.cadence.outputs.run == 'true'
+        run: |
+          python - <<'PY'
+          import csv
+          from pathlib import Path
+
+          old_file = Path("parking_rates/CarparkRates.csv")
+          new_file = Path("parking_rates/CarparkRates.new.csv")
+
+          if not new_file.exists():
+            raise SystemExit("New CSV not generated.")
+
+          with old_file.open(newline="", encoding="utf-8") as f:
+            old_reader = csv.reader(f)
+            old_header = next(old_reader, [])
+            old_rows = sum(1 for _ in old_reader)
+
+          with new_file.open(newline="", encoding="utf-8") as f:
+            new_reader = csv.reader(f)
+            new_header = next(new_reader, [])
+            new_rows = sum(1 for _ in new_reader)
+
+          required = {
+            "carpark",
+            "address",
+            "postal_code",
+            "weekdays_rate_1",
+            "weekdays_rate_2",
+            "saturday_rate",
+            "sunday_publicholiday_rate",
+          }
+          if not required.issubset(set(new_header)):
+            raise SystemExit(f"New CSV header missing required columns. Header: {new_header}")
+
+          if new_rows == 0:
+            raise SystemExit("New CSV has zero data rows.")
+          PY
+
+      - name: Replace CSV with validated output
+        if: steps.cadence.outputs.run == 'true'
+        run: |
+          mv parking_rates/CarparkRates.new.csv parking_rates/CarparkRates.csv
 
       - name: Create pull request if changed
         if: steps.cadence.outputs.run == 'true'
