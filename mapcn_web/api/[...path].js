@@ -8,6 +8,8 @@ const HOP_BY_HOP_HEADERS = new Set([
   "transfer-encoding",
   "upgrade",
 ]);
+const RESPONSE_HEADERS_TO_STRIP = new Set(["content-encoding", "content-length"]);
+const REQUEST_HEADERS_TO_STRIP = new Set(["host", "accept-encoding"]);
 
 function getRequestBody(req) {
   if (req.method === "GET" || req.method === "HEAD") {
@@ -39,7 +41,8 @@ export default async function handler(req, res) {
 
   const requestHeaders = {};
   for (const [name, value] of Object.entries(req.headers || {})) {
-    if (!value || HOP_BY_HOP_HEADERS.has(name.toLowerCase()) || name.toLowerCase() === "host") {
+    const lower = name.toLowerCase();
+    if (!value || HOP_BY_HOP_HEADERS.has(lower) || REQUEST_HEADERS_TO_STRIP.has(lower)) {
       continue;
     }
     requestHeaders[name] = value;
@@ -53,7 +56,8 @@ export default async function handler(req, res) {
   });
 
   for (const [name, value] of upstreamResponse.headers.entries()) {
-    if (HOP_BY_HOP_HEADERS.has(name.toLowerCase())) {
+    const lower = name.toLowerCase();
+    if (HOP_BY_HOP_HEADERS.has(lower) || RESPONSE_HEADERS_TO_STRIP.has(lower)) {
       continue;
     }
     res.setHeader(name, value);
