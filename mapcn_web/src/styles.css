@@ -103,7 +103,7 @@ body {
 
 .map-shell .maplibregl-ctrl-bottom-left .maplibregl-ctrl {
   float: left;
-  margin: 0 0 10px 10px;
+  margin: 0 0 calc(14px + env(safe-area-inset-bottom, 0px)) calc(14px + env(safe-area-inset-left, 0px));
 }
 
 .map-shell .maplibregl-ctrl-attrib.maplibregl-compact {
@@ -389,6 +389,7 @@ input[type="range"] {
   flex-direction: column;
   gap: 6px;
   font-weight: 700;
+  min-width: 0;
 }
 
 .stay-time-label-row {
@@ -411,6 +412,7 @@ input[type="range"] {
   color: var(--text);
   padding: 9px 10px;
   font-size: 0.9rem;
+  line-height: 1.2;
   transition: border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
 }
 
@@ -1208,6 +1210,17 @@ button:hover {
 }
 
 @media (max-width: 860px) {
+  .stay-time-grid {
+    gap: 6px;
+  }
+
+  .stay-time-input {
+    min-height: 46px;
+    padding: 7px 8px;
+    border-radius: 10px;
+    font-size: 0.82rem;
+  }
+
   .map-action-row {
     right: calc(10px + env(safe-area-inset-right, 0px));
     bottom: calc(14px + env(safe-area-inset-bottom, 0px));
