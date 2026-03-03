@@ -17,6 +17,7 @@
   --marker-ring: 4px;
   --popup-actions-gap: 15px;
   --popup-radius: 10px;
+  --edge-pad: clamp(12px, 3vw, 18px);
 }
 
 * {
@@ -97,13 +98,14 @@ body {
 }
 
 .map-shell .maplibregl-ctrl-top-right {
-  margin-top: calc(10px + env(safe-area-inset-top, 0px));
-  margin-right: calc(8px + env(safe-area-inset-right, 0px));
+  margin-top: calc(var(--edge-pad) + env(safe-area-inset-top, 0px));
+  margin-right: calc(var(--edge-pad) + env(safe-area-inset-right, 0px));
 }
 
 .map-shell .maplibregl-ctrl-bottom-left .maplibregl-ctrl {
   float: left;
-  margin: 0 0 calc(14px + env(safe-area-inset-bottom, 0px)) calc(14px + env(safe-area-inset-left, 0px));
+  margin: 0 0 calc(var(--edge-pad) + env(safe-area-inset-bottom, 0px))
+    calc(var(--edge-pad) + env(safe-area-inset-left, 0px));
 }
 
 .map-shell .maplibregl-ctrl-attrib.maplibregl-compact {
@@ -380,8 +382,9 @@ input[type="range"] {
 
 .stay-time-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+  align-items: end;
 }
 
 .stay-time-field {
@@ -406,6 +409,9 @@ input[type="range"] {
 
 .stay-time-input {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  display: block;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--panel);
@@ -414,6 +420,14 @@ input[type="range"] {
   font-size: 0.9rem;
   line-height: 1.2;
   transition: border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+}
+
+.stay-time-input::-webkit-datetime-edit {
+  padding: 0;
+}
+
+.stay-time-input::-webkit-datetime-edit-fields-wrapper {
+  min-width: 0;
 }
 
 .stay-time-input:hover {
@@ -1210,15 +1224,34 @@ button:hover {
 }
 
 @media (max-width: 860px) {
+  .stay-controls {
+    padding: clamp(10px, 2.8vw, 12px);
+    gap: clamp(8px, 2.4vw, 11px);
+  }
+
   .stay-time-grid {
-    gap: 6px;
+    gap: clamp(5px, 1.8vw, 7px);
+  }
+
+  .stay-time-field {
+    gap: clamp(4px, 1.4vw, 6px);
+  }
+
+  .stay-time-label {
+    font-size: clamp(0.72rem, 2.4vw, 0.8rem);
+  }
+
+  .stay-now-btn {
+    font-size: clamp(0.64rem, 2.1vw, 0.75rem);
+    padding: 2px 4px;
+    white-space: nowrap;
   }
 
   .stay-time-input {
-    min-height: 46px;
-    padding: 7px 8px;
-    border-radius: 10px;
-    font-size: 0.82rem;
+    min-height: clamp(40px, 10vw, 46px);
+    padding: clamp(5px, 1.6vw, 7px) clamp(6px, 2.2vw, 9px);
+    border-radius: clamp(9px, 2.2vw, 12px);
+    font-size: clamp(0.74rem, 3.8vw, 0.86rem);
   }
 
   .map-action-row {
