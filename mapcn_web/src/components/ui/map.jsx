@@ -65,7 +65,7 @@ export const Map = forwardRef(function Map(
       maxZoom: 19,
       attributionControl: false,
     });
-    map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
+    map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
 
     mapRef.current = map;
     const handleLoad = () => setIsLoaded(true);
