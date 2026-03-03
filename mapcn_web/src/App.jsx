@@ -1265,7 +1265,7 @@ export default function App() {
         </>
       ) : null}
 
-      <div className="map-action-row">
+      <div className={`map-action-row ${isMenuOpen ? "is-hidden" : ""}`}>
         <button
           type="button"
           className="best-places-btn"
