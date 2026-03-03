@@ -11,17 +11,6 @@ const MAP_STYLES = {
 const USER_ACCURACY_SOURCE = "user-accuracy-source";
 const USER_ACCURACY_FILL = "user-accuracy-fill";
 const USER_ACCURACY_LINE = "user-accuracy-line";
-const API_BASE_URL = String(import.meta.env.VITE_API_BASE_URL || "").trim().replace(/\/+$/, "");
-
-function apiUrl(pathWithQuery) {
-  if (!API_BASE_URL) {
-    return pathWithQuery;
-  }
-  if (pathWithQuery.startsWith("/")) {
-    return `${API_BASE_URL}${pathWithQuery}`;
-  }
-  return `${API_BASE_URL}/${pathWithQuery}`;
-}
 
 function parseTimeInputToMinutes(value) {
   const match = /^(\d{2}):(\d{2})$/.exec(String(value || "").trim());
@@ -555,7 +544,7 @@ export default function App() {
     if (Number.isFinite(toMinutes)) {
       params.set("stay_to", String(toMinutes));
     }
-    const resp = await fetch(apiUrl(`/api/carparks?${params.toString()}`), { cache: "no-store" });
+    const resp = await fetch(`/api/carparks?${params.toString()}`, { cache: "no-store" });
     if (!resp.ok) {
       throw new Error(`HTTP ${resp.status}`);
     }
@@ -565,7 +554,7 @@ export default function App() {
 
   const refreshStatus = useCallback(async () => {
     try {
-      const resp = await fetch(apiUrl("/api/status"), { cache: "no-store" });
+      const resp = await fetch("/api/status", { cache: "no-store" });
       if (!resp.ok) {
         throw new Error(`HTTP ${resp.status}`);
       }
@@ -645,7 +634,7 @@ export default function App() {
       const params = new URLSearchParams();
       params.set("q", query);
       params.set("limit", "1");
-      const resp = await fetch(apiUrl(`/api/place-search?${params.toString()}`), { cache: "no-store" });
+      const resp = await fetch(`/api/place-search?${params.toString()}`, { cache: "no-store" });
       const payload = await resp.json().catch(() => ({}));
       if (!resp.ok) {
         throw new Error(payload?.error || `HTTP ${resp.status}`);
