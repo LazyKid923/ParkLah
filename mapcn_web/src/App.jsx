@@ -89,6 +89,9 @@ function getDefaultStayWindow() {
 }
 
 function getParkingPriceLabel(carpark, stayMinutes, stayDurationLabel) {
+  if (isCarparkUnavailableForSelectedWindow(carpark)) {
+    return "Closed now";
+  }
   const estimate = Number(carpark.price_now_estimate);
   if (Number.isFinite(estimate) && estimate >= 0) {
     const estimateMinutes = Number(carpark.price_now_estimate_minutes);
@@ -105,6 +108,28 @@ function getParkingPriceLabel(carpark, stayMinutes, stayDurationLabel) {
     return `$${estimate60.toFixed(2)} / 60 mins`;
   }
   return "Price unavailable";
+}
+
+function isCarparkUnavailableForSelectedWindow(carpark) {
+  const label = String(carpark?.price_now_label || "").toLowerCase();
+  if (label.includes("closed") || label.includes("no active rate") || label.includes("no parking")) {
+    return true;
+  }
+  const relevantRateSegments = Array.isArray(carpark?.price_relevant_rate_segments)
+    ? carpark.price_relevant_rate_segments
+    : [];
+  if (
+    relevantRateSegments.some(
+      (segment) =>
+        String(segment?.mode || "").toLowerCase() === "closed" ||
+        String(segment?.display_rate || segment?.rule || "")
+          .toLowerCase()
+          .includes("no parking")
+    )
+  ) {
+    return true;
+  }
+  return false;
 }
 
 function isFreeParkingPriceLabel(priceLabel) {
@@ -258,6 +283,9 @@ function classifyCarparkFilterGroup(carpark, displayedPriceLabel) {
 }
 
 function getLotStatus(carpark) {
+  if (isCarparkUnavailableForSelectedWindow(carpark)) {
+    return { key: "gray", label: "Closed" };
+  }
   if (isUraCarpark(carpark)) {
     return { key: "blue", label: "URA" };
   }
@@ -795,6 +823,7 @@ export default function App() {
 
   const bestPlaces = useMemo(() => {
     return visibleCarparks
+      .filter(({ cp }) => !isCarparkUnavailableForSelectedWindow(cp))
       .filter(({ displayedPriceLabel }) => (hideFreeInBestPlaces ? !isFreeParkingPriceLabel(displayedPriceLabel) : true))
       .map(({ cp, distanceKm, displayedPriceLabel }) => ({
         cp,
