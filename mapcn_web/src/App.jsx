@@ -132,6 +132,38 @@ function isCarparkUnavailableForSelectedWindow(carpark) {
   return false;
 }
 
+function isNoParkingOnlyCarpark(carpark) {
+  const rateValues = Object.entries(carpark || {})
+    .filter(([key, value]) => {
+      if (value == null) {
+        return false;
+      }
+      return (
+        key === "weekdays_rate" ||
+        key === "saturday_rate" ||
+        key === "sunday_publicholiday_rate" ||
+        key.startsWith("weekdays_rate_") ||
+        key.startsWith("saturday_rate_") ||
+        key.startsWith("sunday_publicholiday_rate_")
+      );
+    })
+    .map(([, value]) => String(value).trim())
+    .filter(Boolean);
+
+  if (!rateValues.length) {
+    return false;
+  }
+
+  const meaningful = rateValues.filter((text) => {
+    const low = text.toLowerCase();
+    return !low.includes("same as weekday") && !low.includes("same as weekdays");
+  });
+  if (!meaningful.length) {
+    return false;
+  }
+  return meaningful.every((text) => text.toLowerCase().includes("no parking"));
+}
+
 function isFreeParkingPriceLabel(priceLabel) {
   const label = String(priceLabel || "").trim();
   if (!label) {
@@ -769,6 +801,7 @@ export default function App() {
         lat: Number(cp.lat),
         lon: Number(cp.lon),
       }))
+      .filter((cp) => !isNoParkingOnlyCarpark(cp))
       .filter((cp) => Number.isFinite(cp.lat) && Number.isFinite(cp.lon))
       .map((cp) => {
         let distanceKm = null;
