@@ -2058,8 +2058,23 @@ def make_handler(state: AppState):
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "no-store")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
             self.end_headers()
             self.wfile.write(body)
+
+        def do_OPTIONS(self) -> None:
+            parsed = urlparse(self.path)
+            if parsed.path.startswith("/api/"):
+                self.send_response(HTTPStatus.NO_CONTENT)
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+                self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+                self.send_header("Access-Control-Max-Age", "86400")
+                self.end_headers()
+                return
+            super().do_OPTIONS()
 
         def log_message(self, fmt: str, *args: Any) -> None:
             print(f"[http] {self.client_address[0]} - {fmt % args}")

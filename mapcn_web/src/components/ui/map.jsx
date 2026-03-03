@@ -63,8 +63,9 @@ export const Map = forwardRef(function Map(
       zoom: initialZoomRef.current,
       minZoom: 1,
       maxZoom: 19,
-      attributionControl: true,
+      attributionControl: false,
     });
+    map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
 
     mapRef.current = map;
     const handleLoad = () => setIsLoaded(true);
