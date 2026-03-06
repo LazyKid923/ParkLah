@@ -108,6 +108,24 @@ Set these if you want live availability:
 - `LTA_DATAMALL_ACCOUNT_KEY` (or `LTA_ACCOUNT_KEY`)
 - `URA_ACCESS_KEY`
 
+Optional Supabase cache for faster `/api/carparks` responses across restarts:
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_CACHE_TABLE` (default: `parklah_api_cache`)
+- `SUPABASE_CACHE_TTL_SEC` (default: `180`)
+- `SUPABASE_TIMEOUT_SEC` (default: `3`)
+
+Create table in Supabase SQL editor:
+
+```sql
+create table if not exists public.parklah_api_cache (
+  cache_key text primary key,
+  payload jsonb not null,
+  updated_at timestamptz not null default now()
+);
+```
+
 ### Vercel frontend + external backend
 If you deploy `mapcn_web/` to Vercel, the repo includes `mapcn_web/vercel.json` with a rewrite that proxies `/api/*` to `https://parklah.onrender.com/api/*`.
 
@@ -125,6 +143,25 @@ This repo includes `render.yaml` so you can deploy `serve_live_map.py` as a Rend
 Optional env vars in Render (for live lots):
 - `LTA_DATAMALL_ACCOUNT_KEY`
 - `URA_ACCESS_KEY`
+
+Optional env vars in Render (for Supabase cache):
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_CACHE_TABLE`
+- `SUPABASE_CACHE_TTL_SEC`
+- `SUPABASE_TIMEOUT_SEC`
+
+The backend reports Supabase cache state in `GET /api/status`:
+- `supabase_cache_enabled`
+- `supabase_cache_table`
+- `supabase_cache_ttl_sec`
+- `supabase_cache_last_error`
+
+### Keep Render warm on free plan
+This repo includes `.github/workflows/ping-render-health.yml`, which pings your Render health endpoint every 5 minutes.
+
+Optional GitHub repository variable:
+- `RENDER_HEALTH_URL` (defaults to `https://parklah.onrender.com/api/status` if unset)
 
 ---
 

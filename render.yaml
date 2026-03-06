@@ -5,7 +5,7 @@ services:
     plan: free
     region: singapore
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "python serve_live_map.py --host 0.0.0.0 --port $PORT"
+    startCommand: "python serve_live_map.py --host 0.0.0.0 --port $PORT --no-lta-match-debug-log"
     healthCheckPath: /api/status
     envVars:
       - key: PYTHON_VERSION
@@ -14,3 +14,13 @@ services:
         sync: false
       - key: URA_ACCESS_KEY
         sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_CACHE_TABLE
+        value: parklah_api_cache
+      - key: SUPABASE_CACHE_TTL_SEC
+        value: "180"
+      - key: SUPABASE_TIMEOUT_SEC
+        value: "3"

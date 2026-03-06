@@ -17,7 +17,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import parse_qs, urlencode, urlparse
+from urllib.parse import parse_qs, quote, urlencode, urlparse
 from urllib.request import Request, urlopen
 
 from calc_parking_cost import (
@@ -56,6 +56,9 @@ DEFAULT_LTA_MATCH_DEBUG_MAX_ROWS = 2000
 PLACE_SEARCH_MAX_RESULTS = 10
 URA_TOKEN_URL = "https://www.ura.gov.sg/uraDataService/insertNewToken.action"
 URA_INVOKE_URL = "https://www.ura.gov.sg/uraDataService/invokeUraDS"
+DEFAULT_SUPABASE_CACHE_TABLE = "parklah_api_cache"
+DEFAULT_SUPABASE_CACHE_TTL_SEC = 180
+DEFAULT_SUPABASE_TIMEOUT_SEC = 3.0
 
 MATCH_TOKEN_ALIASES = {
     "RD": "ROAD",
@@ -172,6 +175,67 @@ class LtaAvailabilityEntry:
     agency: str
     lot_types: tuple[str, ...]
     tokens: tuple[str, ...]
+
+
+class SupabaseCacheClient:
+    def __init__(
+        self,
+        url: str,
+        service_role_key: str,
+        table: str = DEFAULT_SUPABASE_CACHE_TABLE,
+        timeout_sec: float = DEFAULT_SUPABASE_TIMEOUT_SEC,
+    ) -> None:
+        base = (url or "").strip().rstrip("/")
+        key = (service_role_key or "").strip()
+        table_name = (table or DEFAULT_SUPABASE_CACHE_TABLE).strip()
+        if not base or not key or not table_name:
+            raise ValueError("Missing Supabase cache configuration")
+        self.base = base
+        self.key = key
+        self.table = table_name
+        self.timeout_sec = max(0.5, float(timeout_sec))
+
+    def _headers(self) -> dict[str, str]:
+        return {
+            "apikey": self.key,
+            "Authorization": f"Bearer {self.key}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
+
+    def get_payload(self, cache_key: str) -> tuple[dict[str, Any] | None, datetime | None]:
+        select = quote("payload,updated_at", safe=",")
+        eq_key = quote(cache_key, safe="")
+        url = (
+            f"{self.base}/rest/v1/{self.table}"
+            f"?select={select}&cache_key=eq.{eq_key}&limit=1"
+        )
+        payload = fetch_json(url, timeout=self.timeout_sec, headers=self._headers())
+        if not isinstance(payload, list) or not payload:
+            return (None, None)
+        row = payload[0] if isinstance(payload[0], dict) else None
+        if not isinstance(row, dict):
+            return (None, None)
+        data = row.get("payload")
+        if not isinstance(data, dict):
+            return (None, None)
+        updated_at = parse_iso_datetime(row.get("updated_at"))
+        return (data, updated_at)
+
+    def upsert_payload(self, cache_key: str, payload: dict[str, Any]) -> None:
+        url = f"{self.base}/rest/v1/{self.table}?on_conflict=cache_key"
+        body = json.dumps(
+            [
+                {
+                    "cache_key": cache_key,
+                    "payload": payload,
+                    "updated_at": utc_now_iso(),
+                }
+            ]
+        ).encode("utf-8")
+        headers = self._headers()
+        headers["Prefer"] = "resolution=merge-duplicates,return=minimal"
+        fetch_json(url, timeout=self.timeout_sec, headers=headers, method="POST", body=body)
 
 
 class Svy21Converter:
@@ -291,6 +355,11 @@ class AppState:
         ura_refresh_sec: float = DEFAULT_URA_REFRESH_SEC,
         lta_match_debug_log: Path | None = DEFAULT_LTA_MATCH_DEBUG_LOG,
         lta_match_debug_max_rows: int = DEFAULT_LTA_MATCH_DEBUG_MAX_ROWS,
+        supabase_url: str = "",
+        supabase_service_role_key: str = "",
+        supabase_cache_table: str = DEFAULT_SUPABASE_CACHE_TABLE,
+        supabase_cache_ttl_sec: int = DEFAULT_SUPABASE_CACHE_TTL_SEC,
+        supabase_timeout_sec: float = DEFAULT_SUPABASE_TIMEOUT_SEC,
     ) -> None:
         self.carparks = carparks
         self.cache = cache
@@ -314,8 +383,24 @@ class AppState:
         self.availability_snapshot_at: str | None = None
         self.availability_last_fetch_ts: float | None = None
         self.availability_last_error: str | None = None
+        self.availability_refresh_running = False
         self.availability_match_stats: dict[str, Any] = {}
         self.availability_match_debug_summary: dict[str, Any] = {}
+        self.supabase_cache_table = (supabase_cache_table or DEFAULT_SUPABASE_CACHE_TABLE).strip()
+        self.supabase_cache_ttl_sec = max(10, int(supabase_cache_ttl_sec))
+        self.supabase_timeout_sec = max(0.5, float(supabase_timeout_sec))
+        self.supabase_cache: SupabaseCacheClient | None = None
+        self.supabase_cache_last_error: str | None = None
+        if (supabase_url or "").strip() and (supabase_service_role_key or "").strip():
+            try:
+                self.supabase_cache = SupabaseCacheClient(
+                    url=supabase_url,
+                    service_role_key=supabase_service_role_key,
+                    table=self.supabase_cache_table,
+                    timeout_sec=self.supabase_timeout_sec,
+                )
+            except Exception as exc:
+                self.supabase_cache_last_error = f"init: {exc}"
 
     def refresh_pricing_snapshot(
         self,
@@ -500,6 +585,65 @@ class AppState:
             f"api_unmatched={debug_payload['api_unmatched_total']}"
         )
 
+    def trigger_availability_refresh_async(self, force: bool = False) -> None:
+        if not (self.lta_enabled or self.ura_enabled):
+            return
+        with self.lock:
+            if self.availability_refresh_running:
+                return
+            self.availability_refresh_running = True
+
+        def worker() -> None:
+            try:
+                self.refresh_availability_snapshot(force=force)
+            except Exception as exc:
+                with self.lock:
+                    self.availability_last_error = f"availability-refresh: {exc}"
+            finally:
+                with self.lock:
+                    self.availability_refresh_running = False
+
+        threading.Thread(
+            target=worker,
+            name="availability-refresh",
+            daemon=True,
+        ).start()
+
+    def build_carparks_cache_key(
+        self,
+        include_unlocated: bool,
+        estimate_minutes: int,
+        start_minute: int | None,
+        end_minute: int | None,
+    ) -> str:
+        start_key = "now" if start_minute is None else str(start_minute)
+        end_key = "na" if end_minute is None else str(end_minute)
+        include_key = "1" if include_unlocated else "0"
+        return f"carparks:{include_key}:{estimate_minutes}:{start_key}:{end_key}"
+
+    def read_carparks_cache(self, cache_key: str) -> dict[str, Any] | None:
+        if self.supabase_cache is None:
+            return None
+        try:
+            payload, updated_at = self.supabase_cache.get_payload(cache_key)
+        except Exception as exc:
+            self.supabase_cache_last_error = f"read: {exc}"
+            return None
+        if payload is None or updated_at is None:
+            return None
+        age_sec = (datetime.now(timezone.utc) - updated_at).total_seconds()
+        if age_sec > self.supabase_cache_ttl_sec:
+            return None
+        return payload
+
+    def write_carparks_cache(self, cache_key: str, payload: dict[str, Any]) -> None:
+        if self.supabase_cache is None:
+            return
+        try:
+            self.supabase_cache.upsert_payload(cache_key, payload)
+        except Exception as exc:
+            self.supabase_cache_last_error = f"write: {exc}"
+
     def get_carparks(
         self,
         include_unlocated: bool,
@@ -548,9 +692,14 @@ class AppState:
                 "price_snapshot_minute": self.price_snapshot_minute,
                 "price_snapshot_keys_cached": sorted(self.price_snapshot_by_key.keys()),
                 "availability_enabled": self.lta_enabled or self.ura_enabled,
+                "availability_refresh_running": self.availability_refresh_running,
                 "availability_last_error": self.availability_last_error,
                 "availability_match_stats": self.availability_match_stats,
                 "availability_match_debug_summary": self.availability_match_debug_summary,
+                "supabase_cache_enabled": self.supabase_cache is not None,
+                "supabase_cache_table": self.supabase_cache_table if self.supabase_cache else None,
+                "supabase_cache_ttl_sec": self.supabase_cache_ttl_sec,
+                "supabase_cache_last_error": self.supabase_cache_last_error,
                 "lta_enabled": self.lta_enabled,
                 "lta_refresh_sec": self.lta_refresh_sec,
                 "ura_enabled": self.ura_enabled,
@@ -1586,11 +1735,32 @@ def apply_cache(state: AppState) -> None:
             cp.lon = point["lon"]
 
 
-def fetch_json(url: str, timeout: float = 8.0, headers: dict[str, str] | None = None) -> Any:
+def parse_iso_datetime(raw: Any) -> datetime | None:
+    text = str(raw or "").strip()
+    if not text:
+        return None
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def fetch_json(
+    url: str,
+    timeout: float = 8.0,
+    headers: dict[str, str] | None = None,
+    method: str = "GET",
+    body: bytes | None = None,
+) -> Any:
     req_headers = {"User-Agent": USER_AGENT}
     if headers:
         req_headers.update(headers)
-    req = Request(url, headers=req_headers)
+    req = Request(url, headers=req_headers, method=method, data=body)
     try:
         with urlopen(req, timeout=timeout) as resp:
             raw = resp.read().decode("utf-8", errors="replace")
@@ -1980,7 +2150,19 @@ def make_handler(state: AppState):
                 if stay_from_minute is not None and stay_to_minute is not None:
                     stay_minutes = compute_window_minutes(stay_from_minute, stay_to_minute)
 
-                state.refresh_availability_snapshot()
+                cache_key = state.build_carparks_cache_key(
+                    include_unlocated=include_unlocated,
+                    estimate_minutes=stay_minutes,
+                    start_minute=stay_from_minute,
+                    end_minute=stay_to_minute,
+                )
+                cached_payload = state.read_carparks_cache(cache_key)
+                if isinstance(cached_payload, dict):
+                    state.trigger_availability_refresh_async()
+                    self._send_json(cached_payload)
+                    return
+
+                state.trigger_availability_refresh_async()
                 state.refresh_pricing_snapshot(
                     estimate_minutes=stay_minutes,
                     start_minute=stay_from_minute,
@@ -1996,6 +2178,7 @@ def make_handler(state: AppState):
                         start_minute=stay_from_minute,
                     ),
                 }
+                state.write_carparks_cache(cache_key, payload)
                 self._send_json(payload)
                 return
 
@@ -2127,6 +2310,33 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Disable writing LTA matching debug report",
     )
+    parser.add_argument(
+        "--supabase-url",
+        default=os.environ.get("SUPABASE_URL") or "",
+        help="Supabase project URL for API cache (or env SUPABASE_URL)",
+    )
+    parser.add_argument(
+        "--supabase-service-role-key",
+        default=os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or "",
+        help="Supabase service role key for API cache (or env SUPABASE_SERVICE_ROLE_KEY)",
+    )
+    parser.add_argument(
+        "--supabase-cache-table",
+        default=os.environ.get("SUPABASE_CACHE_TABLE") or DEFAULT_SUPABASE_CACHE_TABLE,
+        help=f"Supabase table name for API cache (default: {DEFAULT_SUPABASE_CACHE_TABLE})",
+    )
+    parser.add_argument(
+        "--supabase-cache-ttl-sec",
+        type=int,
+        default=int(os.environ.get("SUPABASE_CACHE_TTL_SEC") or DEFAULT_SUPABASE_CACHE_TTL_SEC),
+        help=f"Seconds before cached payload is considered stale (default: {DEFAULT_SUPABASE_CACHE_TTL_SEC})",
+    )
+    parser.add_argument(
+        "--supabase-timeout-sec",
+        type=float,
+        default=float(os.environ.get("SUPABASE_TIMEOUT_SEC") or DEFAULT_SUPABASE_TIMEOUT_SEC),
+        help=f"Timeout in seconds for Supabase REST calls (default: {DEFAULT_SUPABASE_TIMEOUT_SEC})",
+    )
     parser.add_argument("--no-geocode", action="store_true", help="Disable background geocoding")
     parser.add_argument(
         "--geocode-interval",
@@ -2157,6 +2367,11 @@ def main() -> None:
         ura_refresh_sec=args.ura_refresh_sec,
         lta_match_debug_log=None if args.no_lta_match_debug_log else args.lta_match_debug_log,
         lta_match_debug_max_rows=args.lta_match_debug_max_rows,
+        supabase_url=args.supabase_url,
+        supabase_service_role_key=args.supabase_service_role_key,
+        supabase_cache_table=args.supabase_cache_table,
+        supabase_cache_ttl_sec=args.supabase_cache_ttl_sec,
+        supabase_timeout_sec=args.supabase_timeout_sec,
     )
     apply_cache(state)
 
@@ -2181,6 +2396,13 @@ def main() -> None:
         f"Loaded {status['total_carparks']} carparks, "
         f"{status['carparks_with_coordinates']} already have coordinates"
     )
+    if status.get("supabase_cache_enabled"):
+        print(
+            f"Supabase cache enabled "
+            f"(table={status.get('supabase_cache_table')}, ttl={status.get('supabase_cache_ttl_sec')}s)"
+        )
+    elif status.get("supabase_cache_last_error"):
+        print(f"Supabase cache disabled due to error: {status.get('supabase_cache_last_error')}")
     if status["lta_enabled"] or status.get("ura_enabled"):
         enabled_sources: list[str] = []
         if status["lta_enabled"]:
