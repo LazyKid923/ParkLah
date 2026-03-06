@@ -2161,7 +2161,7 @@ def main() -> None:
     apply_cache(state)
 
     if state.lta_enabled or state.ura_enabled:
-        state.refresh_availability_snapshot(force=True)
+        state.trigger_availability_refresh_async(force=True)
 
     if not args.no_geocode:
         thread = threading.Thread(
