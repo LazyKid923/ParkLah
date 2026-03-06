@@ -109,7 +109,7 @@ Set these if you want live availability:
 - `URA_ACCESS_KEY`
 
 ### Vercel frontend + external backend
-If you deploy `mapcn_web/` to Vercel, the repo includes `mapcn_web/vercel.json` with a rewrite that proxies `/api/*` to `https://parklah.onrender.com/api/*`.
+If you deploy `mapcn_web/` to Vercel, the repo includes `mapcn_web/vercel.json` with a rewrite that proxies `/api/*` to `https://parklah-backend.onrender.com/api/*`.
 
 This keeps frontend calls same-origin (`/api/...`) without changing React code.
 
@@ -120,7 +120,7 @@ This repo includes `render.yaml` so you can deploy `serve_live_map.py` as a Rend
 2. In Render, create a new **Blueprint** and select this repo.
 3. Render will create `parklah-backend` using `render.yaml`.
 4. After deploy, copy the backend URL (for example `https://parklah-backend.onrender.com`).
-5. In Vercel, set `BACKEND_ORIGIN` to that URL and redeploy the frontend project.
+5. Update `mapcn_web/vercel.json` so the rewrite destination matches your backend URL, then redeploy the frontend project.
 
 Optional env vars in Render (for live lots):
 - `LTA_DATAMALL_ACCOUNT_KEY`
