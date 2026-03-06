@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://parklah-backend.onrender.com/api/:path*"
+      "destination": "https://parklah.onrender.com/api/:path*"
     }
   ]
 }

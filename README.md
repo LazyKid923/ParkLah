@@ -109,7 +109,7 @@ Set these if you want live availability:
 - `URA_ACCESS_KEY`
 
 ### Vercel frontend + external backend
-If you deploy `mapcn_web/` to Vercel, the repo includes `mapcn_web/vercel.json` with a rewrite that proxies `/api/*` to `https://parklah-backend.onrender.com/api/*`.
+If you deploy `mapcn_web/` to Vercel, the repo includes `mapcn_web/vercel.json` with a rewrite that proxies `/api/*` to `https://parklah.onrender.com/api/*`.
 
 This keeps frontend calls same-origin (`/api/...`) without changing React code.
 
